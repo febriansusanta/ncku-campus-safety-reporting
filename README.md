@@ -65,29 +65,6 @@ A web application for reporting safety concerns on the NCKU campus.
    - `GCS_PROJECT_ID`: Your Google Cloud project ID
    - `GCS_KEY_FILE_JSON`: The content of your Google Cloud service account key file (JSON)
 
-### Deployment to Heroku
-
-1. Install Heroku CLI
-2. Login to Heroku:
-   ```
-   heroku login
-   ```
-3. Create a new Heroku app:
-   ```
-   heroku create ncku-campus-safety
-   ```
-4. Set up environment variables:
-   ```
-   heroku config:set MONGODB_URI=your_mongodb_connection_string
-   heroku config:set GCS_BUCKET_NAME=your_gcs_bucket_name
-   heroku config:set GCS_PROJECT_ID=your_gcs_project_id
-   heroku config:set GCS_KEY_FILE_JSON='your_service_account_key_json'
-   ```
-5. Deploy the app:
-   ```
-   git push heroku main
-   ```
-
 ## Updating the Frontend API URL
 
 The application automatically detects whether it's running locally or in a deployed environment and uses the appropriate API URL.
