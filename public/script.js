@@ -412,7 +412,7 @@ function createPopupContent(report) {
                 ${report.photo ? `
                     <div class="detail-item">
                         <strong>Photo:</strong>
-                        <img src="${API_URL}${report.photo}" alt="Report Photo" style="max-width:100%; max-height:200px; margin:8px 0; border-radius:4px;">
+                        <img src="${report.photo.startsWith('/') ? API_URL + report.photo : report.photo}" alt="Report Photo" style="max-width:100%; max-height:200px; margin:8px 0; border-radius:4px;">
                     </div>
                 ` : ''}
                 <div class="report-actions">
@@ -495,7 +495,7 @@ function editReport(id) {
             </label>
             <label>Photo
                 <input type="file" id="editPhoto" accept="image/*" onchange="previewPhoto(this)">
-                ${report.photo ? `<img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${API_URL}${report.photo}">` : 
+                ${report.photo ? `<img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${report.photo.startsWith('/') ? API_URL + report.photo : report.photo}">` : 
                 `<img id="editPhotoPreview" style="display:none; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;">`}
             </label>
             <div class="button-group">
