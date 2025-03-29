@@ -177,12 +177,12 @@ const uploadToGCS = (file, typeDir) => {
             // Create a file object in the bucket
             const gcsFile = bucket.file(filePath);
             
-            // Create a write stream
+            // Create a write stream without ACL (works with Uniform bucket-level access)
             const stream = gcsFile.createWriteStream({
                 metadata: {
                     contentType: file.mimetype
-                },
-                predefinedAcl: 'publicRead' // Make file publicly accessible
+                }
+                // Remove predefinedAcl: 'publicRead' - it's causing the error
             });
             
             // Handle errors
@@ -192,11 +192,24 @@ const uploadToGCS = (file, typeDir) => {
             });
             
             // Handle successful upload
-            stream.on('finish', () => {
-                // Get the public URL
-                const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-                console.log('File uploaded to GCS:', publicUrl);
-                resolve(publicUrl);
+            stream.on('finish', async () => {
+                try {
+                    // Generate a URL that's valid for 10 years
+                    const [url] = await gcsFile.getSignedUrl({
+                        action: 'read',
+                        expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10 // 10 years in milliseconds
+                    });
+                    
+                    console.log('File uploaded to GCS with signed URL:', url);
+                    resolve(url);
+                } catch (err) {
+                    console.error('Error generating signed URL:', err);
+                    
+                    // Fallback to direct URL (this may not work if bucket is not public)
+                    const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+                    console.log('Falling back to public URL:', publicUrl);
+                    resolve(publicUrl);
+                }
             });
             
             // Send the file buffer to GCS
@@ -382,10 +395,26 @@ app.delete('/reports/:id', async (req, res) => {
             if (report.photo.startsWith('/')) {
                 const photoPath = path.join(__dirname, report.photo);
                 deleteFile(photoPath);
-            } else if (process.env.GCS_BUCKET_NAME && report.photo.includes('storage.googleapis.com')) {
+            } else if (process.env.GCS_BUCKET_NAME && 
+                      (report.photo.includes('storage.googleapis.com') || 
+                       report.photo.includes('storage.cloud.google.com'))) {
                 // For GCS files, extract the path and delete
                 try {
-                    const gcsPath = new URL(report.photo).pathname.split('/').slice(2).join('/');
+                    // Parse the URL to extract the path
+                    const url = new URL(report.photo);
+                    let gcsPath;
+                    
+                    // Handle both signed URLs and direct URLs
+                    if (url.pathname.includes('/o/')) {
+                        // This is a signed URL format
+                        const objectPath = url.pathname.split('/o/')[1];
+                        gcsPath = decodeURIComponent(objectPath.split('?')[0]);
+                    } else {
+                        // This is a direct storage.googleapis.com URL
+                        gcsPath = url.pathname.split('/').slice(2).join('/');
+                    }
+                    
+                    console.log('Attempting to delete GCS file:', gcsPath);
                     await bucket.file(gcsPath).delete();
                     console.log('Deleted file from GCS:', gcsPath);
                 } catch (err) {
