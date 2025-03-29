@@ -14,7 +14,9 @@ A web application for reporting safety concerns on the NCKU campus.
 - Frontend: HTML/CSS/JavaScript with Leaflet.js for maps
 - Backend: Node.js with Express
 - Database: MongoDB
-- File Storage: Local file system (for development)
+- File Storage: 
+  - Local file system (for development)
+  - Google Cloud Storage (for production)
 
 ## Deployment Instructions
 
@@ -22,6 +24,7 @@ A web application for reporting safety concerns on the NCKU campus.
 
 - Node.js (v18.x recommended)
 - MongoDB account (for MongoDB Atlas)
+- Google Cloud Platform account (for Cloud Storage)
 - Render.com, Heroku, or similar platform account
 
 ### Local Development
@@ -38,6 +41,15 @@ A web application for reporting safety concerns on the NCKU campus.
    npm run dev
    ```
 
+### Google Cloud Storage Setup
+
+1. Create a new project in Google Cloud Console
+2. Enable the Cloud Storage API
+3. Create a new storage bucket for file uploads
+4. Create a service account with Storage Object Admin role
+5. Download the JSON key file for the service account
+6. Set up your environment variables to use the service account credentials
+
 ### Deployment to Render.com
 
 1. Create a new Web Service on Render
@@ -49,6 +61,9 @@ A web application for reporting safety concerns on the NCKU campus.
 4. Add environment variables:
    - `MONGODB_URI`: Your MongoDB Atlas connection string
    - `PORT`: 3000 (or leave as 3002)
+   - `GCS_BUCKET_NAME`: Your Google Cloud Storage bucket name
+   - `GCS_PROJECT_ID`: Your Google Cloud project ID
+   - `GCS_KEY_FILE_JSON`: The content of your Google Cloud service account key file (JSON)
 
 ### Deployment to Heroku
 
@@ -61,9 +76,12 @@ A web application for reporting safety concerns on the NCKU campus.
    ```
    heroku create ncku-campus-safety
    ```
-4. Set up MongoDB Atlas and add the connection string:
+4. Set up environment variables:
    ```
    heroku config:set MONGODB_URI=your_mongodb_connection_string
+   heroku config:set GCS_BUCKET_NAME=your_gcs_bucket_name
+   heroku config:set GCS_PROJECT_ID=your_gcs_project_id
+   heroku config:set GCS_KEY_FILE_JSON='your_service_account_key_json'
    ```
 5. Deploy the app:
    ```
@@ -72,7 +90,13 @@ A web application for reporting safety concerns on the NCKU campus.
 
 ## Updating the Frontend API URL
 
-Before deployment, make sure to update the API_URL in script.js to point to your deployed backend URL.
+The application automatically detects whether it's running locally or in a deployed environment and uses the appropriate API URL.
+
+## Frontend and Backend Integration
+
+The application correctly handles image URLs from both local storage and Google Cloud Storage:
+- In development: Photos are stored locally and served from the local filesystem
+- In production: Photos are stored in Google Cloud Storage with secure signed URLs
 
 ## License
 
