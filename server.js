@@ -6,16 +6,52 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const {Storage} = require('@google-cloud/storage');
 
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Connect to MongoDB
+// Connect to MongoDB with improved options
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/campus_report';
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+  retryWrites: true
+})
 .then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+  console.log('Please check if your MongoDB Atlas IP whitelist includes 0.0.0.0/0');
+});
+
+// Setup Google Cloud Storage
+let storage;
+let bucket;
+const bucketName = process.env.GCS_BUCKET_NAME || 'ncku-campus-safety-uploads';
+
+try {
+  // When running on Render, use the environment variable with the JSON content
+  if (process.env.GCS_CREDENTIALS) {
+    const credentials = JSON.parse(process.env.GCS_CREDENTIALS);
+    storage = new Storage({
+      projectId: credentials.project_id,
+      credentials: credentials
+    });
+    console.log('Initialized Google Cloud Storage using environment credentials');
+  } else {
+    // For local development, use the file path
+    storage = new Storage({
+      keyFilename: process.env.GCS_KEY_FILE || path.join(__dirname, 'gcs-key.json')
+    });
+    console.log('Initialized Google Cloud Storage using key file');
+  }
+  
+  bucket = storage.bucket(bucketName);
+  console.log(`Connected to Google Cloud Storage bucket: ${bucketName}`);
+} catch (err) {
+  console.error('Error initializing Google Cloud Storage:', err);
+}
 
 // Define Report Schema
 const reportSchema = new mongoose.Schema({
@@ -39,19 +75,29 @@ const Report = mongoose.model('Report', reportSchema);
 app.use(cors());
 app.use(express.json());
 
-// Ensure uploads directory exists
+// Ensure uploads directory exists for local development
 const uploadsDir = path.join(__dirname, 'uploads');
 try {
     if (!fs.existsSync(uploadsDir)) {
         console.log('Creating uploads directory:', uploadsDir);
         fs.mkdirSync(uploadsDir, { recursive: true });
     }
+    
+    // Create standard subdirectories
+    const subdirs = ['Road', 'Accessible_Ramp', 'Street_Light', 'Other'];
+    subdirs.forEach(dir => {
+        const subDirPath = path.join(uploadsDir, dir);
+        if (!fs.existsSync(subDirPath)) {
+            console.log('Creating uploads subdirectory:', subDirPath);
+            fs.mkdirSync(subDirPath, { recursive: true });
+        }
+    });
 } catch (err) {
-    console.error('Error creating uploads directory:', err);
+    console.error('Error creating directories:', err);
 }
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
+// Configure multer for memory storage (for GCS) or disk storage (for local)
+const multerStorage = process.env.GCS_BUCKET_NAME ? multer.memoryStorage() : multer.diskStorage({
     destination: function (req, file, cb) {
         // For ANY custom type that isn't one of the standard types, use the "Other" folder
         const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
@@ -96,14 +142,73 @@ const fileFilter = (req, file, cb) => {
 
 // Create multer upload middleware
 const upload = multer({ 
-    storage: storage,
+    storage: multerStorage,
     fileFilter: fileFilter,
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     }
 }).single('photo');
 
-// Serve static files from uploads directory
+// Function to upload to Google Cloud Storage
+const uploadToGCS = (file, typeDir) => {
+    return new Promise((resolve, reject) => {
+        if (!file) {
+            resolve(null);
+            return;
+        }
+
+        try {
+            // Format for GCS folder structure
+            const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
+            let folderName = 'Other';
+            
+            if (typeDir && typeof typeDir === 'string') {
+                folderName = typeDir.toLowerCase().replace(/ /g, '_');
+            }
+            
+            // Create a unique filename with date
+            const dateStr = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+            const fileExt = path.extname(file.originalname) || '.jpg';
+            const filename = `${dateStr}_${path.basename(file.originalname, fileExt)}${fileExt}`;
+            
+            // Full path in the bucket
+            const filePath = `uploads/${folderName}/${filename}`;
+            
+            // Create a file object in the bucket
+            const gcsFile = bucket.file(filePath);
+            
+            // Create a write stream
+            const stream = gcsFile.createWriteStream({
+                metadata: {
+                    contentType: file.mimetype
+                },
+                predefinedAcl: 'publicRead' // Make file publicly accessible
+            });
+            
+            // Handle errors
+            stream.on('error', (err) => {
+                console.error('GCS upload error:', err);
+                reject(err);
+            });
+            
+            // Handle successful upload
+            stream.on('finish', () => {
+                // Get the public URL
+                const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+                console.log('File uploaded to GCS:', publicUrl);
+                resolve(publicUrl);
+            });
+            
+            // Send the file buffer to GCS
+            stream.end(file.buffer);
+        } catch (err) {
+            console.error('Error in GCS upload function:', err);
+            reject(err);
+        }
+    });
+};
+
+// Serve static files from uploads directory (for local development)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Serve static files from public directory (for frontend)
@@ -125,10 +230,11 @@ const deleteFile = (filePath) => {
 app.get('/reports', async (req, res) => {
     try {
         const reports = await Report.find();
+        console.log(`Successfully fetched ${reports.length} reports`);
         res.json(reports);
     } catch (error) {
         console.error('Error fetching reports:', error);
-        res.status(500).json({ error: 'Error fetching reports' });
+        res.status(500).json({ error: 'Error fetching reports', details: error.message });
     }
 });
 
@@ -154,31 +260,36 @@ app.post('/reports', async (req, res) => {
         console.log('Uploaded file:', req.file);
         
         try {
-            // Standardize type for consistency
-            const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
-            const finalType = req.body.type;
-            
             // Create a new report
             const reportData = {
                 lat: parseFloat(req.body.lat),
                 lng: parseFloat(req.body.lng),
-                type: finalType,
+                type: req.body.type,
                 time: new Date(req.body.time || Date.now()),
                 status: req.body.status || 'Pending',
                 description: req.body.description || '',
                 urgency: req.body.urgency
             };
             
-            // Add photo URL if a file was uploaded
+            // Handle file upload based on environment
             if (req.file) {
-                // Use relative path for storage in DB
-                const relativePath = path.relative(
-                    path.join(__dirname),
-                    req.file.path
-                ).replace(/\\/g, '/');
-                
-                reportData.photo = `/${relativePath}`;
-                console.log('Saved photo path:', reportData.photo);
+                if (process.env.GCS_BUCKET_NAME) {
+                    // Upload to Google Cloud Storage
+                    const photoUrl = await uploadToGCS(req.file, reportData.type);
+                    if (photoUrl) {
+                        reportData.photo = photoUrl;
+                        console.log('Saved photo URL to GCS:', reportData.photo);
+                    }
+                } else {
+                    // Local file storage
+                    const relativePath = path.relative(
+                        path.join(__dirname),
+                        req.file.path
+                    ).replace(/\\/g, '/');
+                    
+                    reportData.photo = `/${relativePath}`;
+                    console.log('Saved photo path locally:', reportData.photo);
+                }
             }
             
             const report = new Report(reportData);
@@ -211,15 +322,6 @@ app.put('/reports/:id', async (req, res) => {
                 return res.status(404).json({ error: 'Report not found' });
             }
             
-            // Standard types list for consistency
-            const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
-            
-            // Check if type has changed between standard types or to/from Other
-            const originalTypeIsStandard = standardTypes.includes(report.type);
-            const newTypeIsStandard = req.body.type && standardTypes.includes(req.body.type);
-            const typeChanged = originalTypeIsStandard !== newTypeIsStandard || 
-                              (originalTypeIsStandard && newTypeIsStandard && report.type !== req.body.type);
-            
             // Update report data
             report.type = req.body.type || report.type;
             report.time = req.body.time ? new Date(req.body.time) : report.time;
@@ -229,63 +331,30 @@ app.put('/reports/:id', async (req, res) => {
             
             // Handle photo updates
             if (req.file) {
-                // If there's an existing photo, delete it
-                if (report.photo && report.photo !== '') {
-                    const oldPhotoPath = path.join(__dirname, report.photo);
-                    deleteFile(oldPhotoPath);
-                }
-                
-                // Use relative path for storage in DB
-                const relativePath = path.relative(
-                    path.join(__dirname),
-                    req.file.path
-                ).replace(/\\/g, '/');
-                
-                report.photo = `/${relativePath}`;
-                console.log('Updated photo path:', report.photo);
-            } else if (typeChanged && report.photo) {
-                // If type changed but no new photo, move existing photo to new type folder
-                const oldPhotoPath = path.join(__dirname, report.photo);
-                const oldPhotoName = path.basename(report.photo);
-                
-                // Determine new folder based on type
-                let newTypeDir = 'Other';
-                if (standardTypes.includes(req.body.type)) {
-                    newTypeDir = req.body.type.toLowerCase().replace(/ /g, '_');
-                }
-                
-                console.log(`Moving photo to ${newTypeDir} folder`);
-                
-                const newTypePath = path.join(uploadsDir, newTypeDir);
-                if (!fs.existsSync(newTypePath)) {
-                    fs.mkdirSync(newTypePath, { recursive: true });
-                }
-                
-                const newPhotoPath = path.join(newTypePath, oldPhotoName);
-                
-                // Check if the file exists before attempting to move it
-                if (fs.existsSync(oldPhotoPath)) {
-                    try {
-                        fs.renameSync(oldPhotoPath, newPhotoPath);
-                        console.log(`Successfully moved photo from ${oldPhotoPath} to ${newPhotoPath}`);
-                    } catch (err) {
-                        console.error(`Error moving file: ${err.message}`);
-                        // If we can't move it (e.g., across devices), copy and delete
-                        fs.copyFileSync(oldPhotoPath, newPhotoPath);
+                if (process.env.GCS_BUCKET_NAME) {
+                    // Upload to Google Cloud Storage
+                    const photoUrl = await uploadToGCS(req.file, report.type);
+                    if (photoUrl) {
+                        // If we're updating from local storage to GCS, no need to delete the old file
+                        // as it exists in a different storage system
+                        report.photo = photoUrl;
+                        console.log('Updated photo URL in GCS:', report.photo);
+                    }
+                } else {
+                    // Local file storage - handle deleting old file
+                    if (report.photo && report.photo !== '' && report.photo.startsWith('/')) {
+                        const oldPhotoPath = path.join(__dirname, report.photo);
                         deleteFile(oldPhotoPath);
-                        console.log(`Copied and deleted instead of moving`);
                     }
                     
-                    // Update photo path in database
-                    const newRelativePath = path.relative(
+                    // Use relative path for storage in DB
+                    const relativePath = path.relative(
                         path.join(__dirname),
-                        newPhotoPath
+                        req.file.path
                     ).replace(/\\/g, '/');
                     
-                    report.photo = `/${newRelativePath}`;
-                    console.log('Updated photo path after move:', report.photo);
-                } else {
-                    console.warn(`Could not find original photo at ${oldPhotoPath}`);
+                    report.photo = `/${relativePath}`;
+                    console.log('Updated photo path locally:', report.photo);
                 }
             }
             
@@ -309,8 +378,20 @@ app.delete('/reports/:id', async (req, res) => {
         
         // Delete associated photo if it exists
         if (report.photo && report.photo !== '') {
-            const photoPath = path.join(__dirname, report.photo);
-            deleteFile(photoPath);
+            // Only delete local files, GCS files we leave for now
+            if (report.photo.startsWith('/')) {
+                const photoPath = path.join(__dirname, report.photo);
+                deleteFile(photoPath);
+            } else if (process.env.GCS_BUCKET_NAME && report.photo.includes('storage.googleapis.com')) {
+                // For GCS files, extract the path and delete
+                try {
+                    const gcsPath = new URL(report.photo).pathname.split('/').slice(2).join('/');
+                    await bucket.file(gcsPath).delete();
+                    console.log('Deleted file from GCS:', gcsPath);
+                } catch (err) {
+                    console.error('Error deleting file from GCS:', err);
+                }
+            }
         }
         
         await Report.findByIdAndDelete(req.params.id);
