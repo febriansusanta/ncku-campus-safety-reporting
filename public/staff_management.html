@@ -6,6 +6,7 @@
     <title>Staff Management Page</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="icon" href="assets/icons8-map-64.png" type="image/png">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf/turf.min.js"></script>
     <style>
@@ -13,13 +14,14 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
         }
 
         body {
+            margin: 0;
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            font-family: 'Poppins', sans-serif;
+            height: 100%;
             overflow: hidden;
         }
 
@@ -715,6 +717,8 @@
             'Other': '#9E9E9E'                // Medium gray
         };
         
+        // ===== INITIALIZATION FUNCTIONS =====
+        
         // Map initialization
         function initializeMap() {
             map.setView([22.9972, 120.2194], 16);
@@ -765,7 +769,9 @@
                 .catch(error => console.error('Error loading GeoJSON:', error));
         }
 
-        // Data management functions
+        // ===== DATA MANAGEMENT FUNCTIONS =====
+        
+        // Fetch all reports from the API
         function fetchReports() {
             fetch(`${API_URL}/reports`)
                 .then(response => response.json())
@@ -780,6 +786,7 @@
                 });
         }
 
+        // Update map markers based on reports data
         function updateMarkers() {
             map.eachLayer(function(layer) {
                 if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
@@ -821,6 +828,7 @@
             adjustForScreenSize();
         }
         
+        // Create popup content for a report marker
         function createPopupContent(report) {
             let timeStr = 'N/A';
             try {
@@ -864,6 +872,7 @@
             `;
         }
         
+        // Update statistics panel with current report data
         function updateStatistics() {
             document.getElementById('totalPoints').innerText = reports.length;
             
@@ -924,7 +933,9 @@
             });
         }
 
-        // CRUD operations
+        // ===== CRUD OPERATIONS =====
+        
+        // Delete a report
         function deleteReport(id) {
             if (!confirm('Are you sure you want to delete this report?')) {
                 return;
@@ -946,6 +957,7 @@
             });
         }
 
+        // Show edit form for a report
         function editReport(lat, lng, id) {
             const report = reports.find(r => r._id === id);
             if (!report) return;
@@ -1023,6 +1035,7 @@
             }, 100);
         }
 
+        // Preview photo in edit form
         function previewEditPhoto(input) {
             const preview = document.getElementById('editPhotoPreview');
             if (!preview) return;
@@ -1041,6 +1054,7 @@
             }
         }
 
+        // Update a report with new data
         function updateReport(id) {
             const report = reports.find(r => r._id === id);
             if (!report) return;
@@ -1147,7 +1161,9 @@
             });
         }
 
-        // Helper functions
+        // ===== HELPER FUNCTIONS =====
+        
+        // Update status options based on selected type
         function updateEditStatusOptions(select) {
             const statusSelect = document.getElementById('editStatus');
             const otherTypeLabel = document.getElementById('editOtherTypeLabel');
@@ -1202,6 +1218,7 @@
             statusSelect.selectedIndex = 0;
         }
 
+        // Add options to a select element
         function addOptions(selectElement, options) {
             options.forEach(option => {
                 const optionElement = document.createElement('option');
@@ -1211,6 +1228,7 @@
             });
         }
         
+        // Change display mode between urgency and type
         function changeDisplayMode(mode) {
             if (mode === currentDisplayMode) return;
             
@@ -1223,6 +1241,7 @@
             updateMarkers();
         }
         
+        // Update the legend based on current display mode
         function updateLegend() {
             const legendTitle = document.getElementById('legendTitle');
             const legendContent = document.getElementById('legendContent');
@@ -1245,6 +1264,7 @@
             }
         }
         
+        // Adjust UI elements based on screen size
         function adjustForScreenSize() {
             const width = window.innerWidth;
             
@@ -1255,7 +1275,7 @@
             }
         }
 
-        // Initialize the map and fetch reports when the page loads
+        // Initialize the application when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             initializeMap();
             fetchReports();
