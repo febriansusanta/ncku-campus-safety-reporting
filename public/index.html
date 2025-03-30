@@ -9,11 +9,23 @@
     <link rel="stylesheet" href="styles.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf/turf.min.js"></script>
+    <style>
+        /* Add responsive styles directly in HTML for title changes */
+        @media screen and (max-width: 570px) {
+            #title:before {
+                content: "NCKU Safety Reporting Platform";
+                display: block;
+            }
+            #title > span {
+                display: none;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Top Bar -->
     <div id="topBar">
-        <div id="title">NCKU Campus Safety Reporting Platform</div>
+        <div id="title"><span>NCKU Campus Safety Reporting Platform</span></div>
         <div id="topBarButtons">
             <button id="helpButton" onclick="showHelpPopup()">Help</button>
             <button id="loginButton" onclick="showLoginPopup()">Staff Login</button>
