@@ -87,7 +87,7 @@
         }
 
         #map { 
-            height: 100vh; 
+            height: calc(100vh - 50px); 
             margin-top: 50px;
             width: 100%;
             z-index: 1;
@@ -435,13 +435,6 @@
                 flex-direction: column;
             }
             
-            .legend {
-                bottom: 10px;
-                left: 10px;
-                padding: 8px;
-                max-width: 120px;
-            }
-            
             .statistics-panel {
                 top: 60px;
                 right: 10px;
@@ -478,6 +471,7 @@
             
             #map {
                 margin-top: 45px;
+                height: calc(100vh - 45px);
             }
             
             #title {
@@ -511,14 +505,6 @@
             .toggle-button {
                 padding: 4px 6px;
                 font-size: 11px;
-            }
-            
-            .legend {
-                font-size: 11px;
-            }
-            
-            .legend h4 {
-                font-size: 12px;
             }
             
             .statistics-panel {
@@ -555,6 +541,7 @@
             
             #map {
                 margin-top: 40px;
+                height: calc(100vh - 40px);
             }
         }
 
