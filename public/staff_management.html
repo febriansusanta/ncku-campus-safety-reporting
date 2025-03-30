@@ -271,21 +271,19 @@
             font-weight: 500;
         }
 
-        /* Style for required fields - asterisk after label text */
+        /* Style for required fields - use span.required instead of label::after */
         .leaflet-popup-content label:has(select[required]):after,
         .leaflet-popup-content label:has(input[required]):after {
-            content: " *";
+            display: none; /* Remove the current method */
+        }
+
+        .required:after {
+            content: "*";
             color: #420A15;
             display: inline;
             margin-left: 2px;
         }
 
-        /* Remove the old required class styling since we're using the new method */
-        .leaflet-popup-content .required,
-        .leaflet-popup-content .required:after {
-            display: none;
-        }
-        
         /* File input styling */
         .leaflet-popup-content input[type="file"] {
             width: 100%;
@@ -400,11 +398,11 @@
         }
 
         .delete-button {
-            background-color: #D32F2F;
+            background-color: #D32F2F !important;
         }
 
         .delete-button:hover {
-            background-color: #B71C1C;
+            background-color: #B71C1C !important;
         }
 
         /* Responsive design styles */
@@ -708,21 +706,21 @@
     </div>
     
     <script>
+        // Global variables
         var map = L.map('map');
         var reports = [];
         var currentDisplayMode = 'urgency';
         var API_URL = window.location.hostname === 'localhost' 
             ? 'http://localhost:3002' 
-            : window.location.origin; // Use the same origin if deployed
+            : window.location.origin;
         
-        // Colors for urgency levels
+        // Color definitions
         var urgencyColors = {
             'High': 'red',
             'Medium': 'yellow',
             'Low': 'green'
         };
         
-        // Colors for report types
         var typeColors = {
             'Road': '#4CAF50',                // Vibrant green
             'Accessible Ramp': '#2196F3',     // Bright blue
@@ -730,12 +728,10 @@
             'Other': '#9E9E9E'                // Medium gray
         };
         
-        // Initialize map with NCKU campus
+        // Map initialization
         function initializeMap() {
-            // Set default view to NCKU campus
             map.setView([22.9972, 120.2194], 16);
             
-            // Define basemap layers
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             });
@@ -744,54 +740,45 @@
                 attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
             });
             
-            // Define base maps for layer control
             const baseMaps = {
                 "Standard Map": osmLayer,
                 "Satellite Imagery": satelliteLayer
             };
             
-            // Add the default layer to the map
             osmLayer.addTo(map);
             
-            // Add layer control to the map
             L.control.layers(baseMaps, null, {
                 position: 'bottomright',
                 collapsed: false
             }).addTo(map);
             
-            // Load campus boundary
             loadCampusBoundary();
         }
         
-        // Load campus boundary from GeoJSON
+        // Load GeoJSON boundary
         function loadCampusBoundary() {
             fetch('ncku_campus_region.geojson')
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     return response.json();
                 })
                 .then(data => {
-                    console.log('GeoJSON data loaded successfully:', data);
                     const geoJsonLayer = L.geoJSON(data, {
                         style: {
-                            color: '#420A15', // Dark red outline
+                            color: '#420A15',
                             weight: 2,
-                            fillColor: '#420A15', // Fill with same color
-                            fillOpacity: 0.1 // 10% opacity
+                            fillColor: '#420A15',
+                            fillOpacity: 0.1
                         }
                     }).addTo(map);
 
-                    // Bring the GeoJSON layer to the front
                     geoJsonLayer.bringToFront();
-
-                    // Adjust the map view to fit the GeoJSON layer
                     map.fitBounds(geoJsonLayer.getBounds());
                 })
                 .catch(error => console.error('Error loading GeoJSON:', error));
         }
 
+        // Data management functions
         function fetchReports() {
             fetch(`${API_URL}/reports`)
                 .then(response => response.json())
@@ -818,7 +805,7 @@
                 var markerColor;
                 if (currentDisplayMode === 'urgency') {
                     markerColor = urgencyColors[report.urgency] || 'gray';
-                } else { // type mode
+                } else {
                     const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
                     if (standardTypes.includes(report.type)) {
                         markerColor = typeColors[report.type];
@@ -827,7 +814,6 @@
                     }
                 }
                 
-                // Create a custom div icon with style matching legend span
                 const markerIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="background-color:${markerColor};" class="simple-circle-marker"></div>`,
@@ -836,23 +822,19 @@
                     popupAnchor: [0, -6]
                 });
                 
-                // Create the marker with the custom icon
                 var marker = L.marker([report.lat, report.lng], {
                     icon: markerIcon,
                     riseOnHover: true,
                     title: report.type || 'Report'
                 }).addTo(map).bindPopup(createPopupContent(report));
                 
-                // Store marker reference in the report object for easier access
                 report.marker = marker;
             });
             
-            // Apply screen-size-based adjustments to the markers
             adjustForScreenSize();
         }
         
         function createPopupContent(report) {
-            // Format the date properly
             let timeStr = 'N/A';
             try {
                 timeStr = new Date(report.time).toLocaleString();
@@ -896,17 +878,14 @@
         }
         
         function updateStatistics() {
-            // Update total points count
             document.getElementById('totalPoints').innerText = reports.length;
             
-            // Count reports by urgency level
             const urgencyCounts = {
                 'High': 0,
                 'Medium': 0,
                 'Low': 0
             };
             
-            // Count reports by type
             const typeCounts = {
                 'Road': 0,
                 'Accessible Ramp': 0,
@@ -914,16 +893,13 @@
                 'Other': 0
             };
             
-            // Define standard types
             const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
             
             reports.forEach(report => {
-                // Count by urgency
                 if (report.urgency && urgencyCounts.hasOwnProperty(report.urgency)) {
                     urgencyCounts[report.urgency]++;
                 }
                 
-                // Count by type - group all non-standard types as "Other"
                 if (report.type) {
                     if (standardTypes.includes(report.type)) {
                         typeCounts[report.type]++;
@@ -933,27 +909,21 @@
                 }
             });
             
-            // Update urgency counts
             document.getElementById('highCount').innerText = urgencyCounts['High'];
             document.getElementById('mediumCount').innerText = urgencyCounts['Medium'];
             document.getElementById('lowCount').innerText = urgencyCounts['Low'];
             
-            // Update type counts
             const typeStatsContainer = document.getElementById('typeStats');
             typeStatsContainer.innerHTML = '';
             
-            // Sort types by count (descending) but keep predefined order for standard types
             const sortedTypes = Object.entries(typeCounts)
-                .filter(([_, count]) => count > 0)  // Only show types that have at least one report
+                .filter(([_, count]) => count > 0)
                 .sort((a, b) => {
-                    // Keep standard types at the top in their original order
                     if (standardTypes.includes(a[0]) && standardTypes.includes(b[0])) {
                         return standardTypes.indexOf(a[0]) - standardTypes.indexOf(b[0]);
                     }
-                    // Keep Other at the bottom
                     if (a[0] === 'Other') return 1;
                     if (b[0] === 'Other') return -1;
-                    // Sort by count for any other types
                     return b[1] - a[1];
                 });
             
@@ -967,6 +937,7 @@
             });
         }
 
+        // CRUD operations
         function deleteReport(id) {
             if (!confirm('Are you sure you want to delete this report?')) {
                 return;
@@ -990,30 +961,17 @@
 
         function editReport(lat, lng, id) {
             const report = reports.find(r => r._id === id);
-            if (!report) {
-                console.error('Report not found:', id);
-                return;
-            }
-
-            // Format time properly for datetime-local input
-            let formattedTime = '';
-            try {
-                const reportDate = new Date(report.time);
-                formattedTime = reportDate.toISOString().slice(0, 16);
-            } catch (err) {
-                console.warn('Error formatting date:', err);
-                formattedTime = new Date().toISOString().slice(0, 16);
-            }
-
-            // Define standard types for consistency
+            if (!report) return;
+            
+            const formattedTime = new Date(report.time).toISOString().slice(0, 16);
+            
             const standardTypes = ['Road', 'Accessible Ramp', 'Street Light'];
             const isStandardType = standardTypes.includes(report.type);
             
-            // Create the popup content with the edit form
             const popupContent = `
-                <form id="editForm" enctype="multipart/form-data">
-                    <label>Type *
-                        <select id="editType" required>
+                <form id="editForm">
+                    <label>Type <span class="required"></span>
+                        <select id="editType" onchange="updateEditStatusOptions(this)" required>
                             <option value="">Please select</option>
                             <option value="Road" ${report.type === 'Road' ? 'selected' : ''}>Road</option>
                             <option value="Accessible Ramp" ${report.type === 'Accessible Ramp' ? 'selected' : ''}>Accessible Ramp</option>
@@ -1024,10 +982,10 @@
                     <label id="editOtherTypeLabel" style="display:${!isStandardType ? 'block' : 'none'};">
                         Other Type <input type="text" id="editOtherType" value="${!isStandardType ? report.type : ''}">
                     </label>
-                    <label>Time *
+                    <label>Time <span class="required"></span>
                         <input type="datetime-local" id="editTime" value="${formattedTime}" required>
                     </label>
-                    <label>Status *
+                    <label>Status <span class="required"></span>
                         <select id="editStatus" required>
                             <option value="">Please select</option>
                             <option value="Pending" ${report.status === 'Pending' ? 'selected' : ''}>Pending</option>
@@ -1038,7 +996,7 @@
                     <label>Description
                         <textarea id="editDescription">${report.description || ''}</textarea>
                     </label>
-                    <label>Urgency *
+                    <label>Urgency <span class="required"></span>
                         <select id="editUrgency" required>
                             <option value="">Please select</option>
                             <option value="Low" ${report.urgency === 'Low' ? 'selected' : ''}>Low</option>
@@ -1058,13 +1016,11 @@
                 </form>
             `;
             
-            // Create and open popup at the report's location
             L.popup()
                 .setLatLng([report.lat, report.lng])
                 .setContent(popupContent)
                 .openOn(map);
             
-            // Add event listener to the type select to show/hide the other type field
             setTimeout(() => {
                 const typeSelect = document.getElementById('editType');
                 const otherTypeLabel = document.getElementById('editOtherTypeLabel');
@@ -1074,10 +1030,12 @@
                         otherTypeLabel.style.display = typeSelect.value === 'Other' ? 'block' : 'none';
                     });
                 }
+                
+                // Initialize status options based on selected type
+                updateEditStatusOptions(typeSelect);
             }, 100);
         }
-        
-        // Preview photo function to match the main platform behavior
+
         function previewEditPhoto(input) {
             const preview = document.getElementById('editPhotoPreview');
             if (!preview) return;
@@ -1095,7 +1053,7 @@
                 preview.style.display = 'none';
             }
         }
-        
+
         function updateReport(id) {
             const report = reports.find(r => r._id === id);
             if (!report) return;
@@ -1127,7 +1085,6 @@
                 return;
             }
             
-            // Determine the final type based on the selection
             let finalType = typeSelect.value;
             if (finalType === 'Other') {
                 const otherTypeInput = document.getElementById('editOtherType');
@@ -1136,7 +1093,6 @@
                 }
             }
             
-            // Prepare form data for the update
             const formData = new FormData();
             formData.append('lat', report.lat);
             formData.append('lng', report.lng);
@@ -1146,25 +1102,32 @@
             formData.append('description', document.getElementById('editDescription').value || '');
             formData.append('urgency', urgencySelect.value);
             
-            // Include existing photo if there is one
-            if (report.photo) {
+            // Handle photo upload
+            const photoInput = document.getElementById('editPhoto');
+            if (photoInput && photoInput.files && photoInput.files[0]) {
+                const photoFile = photoInput.files[0];
+                
+                if (!photoFile.type.match('image.*')) {
+                    alert('Please select an image file (JPEG, PNG, GIF)');
+                    return;
+                }
+                
+                if (photoFile.size > 5 * 1024 * 1024) {
+                    alert('The photo is too large. Please select an image under 5MB.');
+                    return;
+                }
+                
+                formData.append('photo', photoFile);
+            } else if (report.photo) {
                 formData.append('existingPhoto', report.photo);
             }
             
-            // Add the new photo if one was selected
-            const photoInput = document.getElementById('editPhoto');
-            if (photoInput && photoInput.files && photoInput.files[0]) {
-                formData.append('photo', photoInput.files[0]);
-            }
-            
-            // Show loading indicator
             const updateButton = editForm.querySelector('button[onclick^="updateReport"]');
             if (updateButton) {
                 updateButton.disabled = true;
                 updateButton.textContent = 'Updating...';
             }
             
-            // Send the update request
             fetch(`${API_URL}/reports/${id}`, {
                 method: 'PUT',
                 body: formData
@@ -1176,54 +1139,103 @@
                 return response.json();
             })
             .then(updatedReport => {
-                console.log('Report updated successfully:', updatedReport);
-                
-                // Update the report in the local array
                 const index = reports.findIndex(r => r._id === id);
                 if (index !== -1) {
                     reports[index] = updatedReport;
                 }
                 
-                // Refresh the map and statistics
                 updateMarkers();
                 updateStatistics();
-                
-                // Close the popup
                 map.closePopup();
-                
-                // Show success message
                 alert('Report updated successfully');
             })
             .catch(error => {
                 console.error('Error updating report:', error);
                 alert('Error updating report: ' + error.message);
                 
-                // Re-enable the update button
                 if (updateButton) {
                     updateButton.disabled = false;
                     updateButton.textContent = 'Update';
                 }
             });
         }
+
+        // Helper functions
+        function updateEditStatusOptions(select) {
+            const statusSelect = document.getElementById('editStatus');
+            const otherTypeLabel = document.getElementById('editOtherTypeLabel');
+            
+            if (!statusSelect) return;
+            
+            statusSelect.innerHTML = '';
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Please select';
+            statusSelect.appendChild(defaultOption);
+            
+            if (otherTypeLabel) {
+                otherTypeLabel.style.display = (select.value === 'Other') ? 'block' : 'none';
+            }
+            
+            switch(select.value) {
+                case 'Road':
+                    addOptions(statusSelect, [
+                        'Uneven surface',
+                        'Slippery pavement',
+                        'Narrow width',
+                        'Insufficient accessibility features',
+                        'Prone to water accumulation',
+                        'Others (please specify in the Description)'
+                    ]);
+                    break;
+                case 'Accessible Ramp':
+                    addOptions(statusSelect, [
+                        'Uneven surface',
+                        'Slippery pavement',
+                        'Narrow width',
+                        'Excessively steep slope',
+                        'Prone to water accumulation',
+                        'Others (please specify in the Description)'
+                    ]);
+                    break;
+                case 'Street Light':
+                    addOptions(statusSelect, [
+                        'Not working (malfunction/offline)',
+                        'Dim lighting',
+                        'Flickering light',
+                        'Others (please specify in the Description)'
+                    ]);
+                    break;
+                case 'Other':
+                    addOptions(statusSelect, ['Please specify in the Description']);
+                    break;
+            }
+            
+            statusSelect.selectedIndex = 0;
+        }
+
+        function addOptions(selectElement, options) {
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option;
+                optionElement.textContent = option;
+                selectElement.appendChild(optionElement);
+            });
+        }
         
-        // Change display mode between urgency and type
         function changeDisplayMode(mode) {
             if (mode === currentDisplayMode) return;
             
             currentDisplayMode = mode;
             
-            // Update active button styling
             document.getElementById('urgencyModeBtn').classList.toggle('active', mode === 'urgency');
             document.getElementById('typeModeBtn').classList.toggle('active', mode === 'type');
             
-            // Update legend
             updateLegend();
-            
-            // Update markers on map
             updateMarkers();
         }
         
-        // Update the legend based on current display mode
         function updateLegend() {
             const legendTitle = document.getElementById('legendTitle');
             const legendContent = document.getElementById('legendContent');
@@ -1235,7 +1247,7 @@
                     <div><span style="background: yellow;"></span> Medium</div>
                     <div><span style="background: green;"></span> Low</div>
                 `;
-            } else { // type mode
+            } else {
                 legendTitle.textContent = 'Type';
                 legendContent.innerHTML = `
                     <div><span style="background: #4CAF50;"></span> Road</div>
@@ -1246,32 +1258,24 @@
             }
         }
         
-        // Initialize the map and fetch reports when the page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeMap();
-            fetchReports();
-            
-            // Add resize event handler for responsive design
-            window.addEventListener('resize', function() {
-                adjustForScreenSize();
-            });
-            
-            // Initial adjustment based on screen size
-            adjustForScreenSize();
-        });
-        
-        // Function to make adjustments based on screen size
         function adjustForScreenSize() {
             const width = window.innerWidth;
-            const height = window.innerHeight;
             
-            // On very small screens, adjust UI elements
             if (width < 380) {
                 document.querySelector('.display-toggle h4').style.display = 'none';
             } else {
                 document.querySelector('.display-toggle h4').style.display = 'block';
             }
         }
+
+        // Initialize the map and fetch reports when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            fetchReports();
+            
+            window.addEventListener('resize', adjustForScreenSize);
+            adjustForScreenSize();
+        });
     </script>
 </body>
 </html>
