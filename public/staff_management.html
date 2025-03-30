@@ -205,7 +205,7 @@
         .display-toggle {
             position: absolute;
             top: 60px;
-            left: 20px;
+            left: 60px;
             background: white;
             padding: 10px;
             border-radius: 5px;
@@ -281,8 +281,9 @@
         }
 
         /* Remove the old required class styling since we're using the new method */
+        .leaflet-popup-content .required,
         .leaflet-popup-content .required:after {
-            content: none;
+            display: none;
         }
         
         /* File input styling */
@@ -427,7 +428,7 @@
             }
             
             .display-toggle {
-                top: 60px;
+                top: 130px;
                 left: 10px;
                 padding: 8px;
             }
@@ -471,14 +472,14 @@
         }
         
         /* Further adjustments for even smaller screens */
-        @media screen and (max-width: 480px) {
+        @media screen and (max-width: 570px) {
             #topBar {
-                height: 40px;
-                padding: 0 5px;
+                height: 45px;
+                padding: 0 8px;
             }
             
             #map {
-                margin-top: 40px;
+                margin-top: 45px;
             }
             
             #title {
@@ -498,12 +499,15 @@
             #backButton {
                 font-size: 12px;
                 padding: 3px 6px;
-                margin-right: 8px;
+                margin-right: 5px;
+                min-width: 60px;
+                flex-shrink: 0;
             }
             
             .display-toggle {
-                top: 45px;
+                top: 130px;
                 padding: 5px;
+                left: 10px;
             }
             
             .toggle-button {
@@ -522,6 +526,37 @@
             .statistics-panel {
                 top: 45px;
                 max-width: 150px;
+            }
+            
+            /* Show the mobile title only on small screens */
+            #fullTitle {
+                display: none;
+            }
+            
+            #mobileTitle {
+                display: block;
+            }
+        }
+
+        @media screen and (min-width: 571px) {
+            /* Show the full title on larger screens */
+            #fullTitle {
+                display: block;
+            }
+            
+            #mobileTitle {
+                display: none;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            #topBar {
+                height: 40px;
+                padding: 0 5px;
+            }
+            
+            #map {
+                margin-top: 40px;
             }
         }
 
@@ -544,6 +579,61 @@
         .simple-circle-marker:hover {
             transform: scale(1.2);
         }
+
+        /* Fix for zoom control buttons font weight */
+        .leaflet-control-zoom a {
+            font-weight: normal !important;
+        }
+
+        /* Layer control styling to match main platform */
+        .leaflet-control-layers {
+            border-radius: 6px !important;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+            border: none !important;
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        .leaflet-control-layers-toggle {
+            width: 36px !important;
+            height: 36px !important;
+            background-size: 20px 20px !important;
+        }
+
+        .leaflet-control-layers-expanded {
+            padding: 10px !important;
+            background-color: white !important;
+            color: #333 !important;
+            min-width: 160px !important;
+        }
+
+        .leaflet-control-layers-selector {
+            margin-right: 6px !important;
+        }
+
+        .leaflet-control-layers-separator {
+            margin: 8px 0 !important;
+            border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .leaflet-control-layers-base label,
+        .leaflet-control-layers-overlays label {
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            margin-bottom: 4px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        .leaflet-control-layers-base label:hover,
+        .leaflet-control-layers-overlays label:hover {
+            background-color: rgba(66, 10, 21, 0.05) !important;
+            border-radius: 4px !important;
+        }
+
+        .leaflet-control-layers-base label span,
+        .leaflet-control-layers-overlays label span {
+            padding: 2px 0 !important;
+        }
     </style>
 </head>
 <body>
@@ -551,8 +641,14 @@
         <div style="display: flex; align-items: center;">
             <button id="backButton" onclick="window.location.href='index.html'">← Back</button>
             <div id="titleContainer">
-                <div id="title">NCKU Campus Safety Reporting Platform</div>
-                <div id="subtitle">Staff Management</div>
+                <div id="title">
+                    <span id="fullTitle">NCKU Campus Safety Reporting Platform</span>
+                    <span id="mobileTitle">NCKU Safety Reporting Platform</span>
+                </div>
+                <div id="subtitle">
+                    <span id="fullTitle">Staff Management</span>
+                    <span id="mobileTitle">Staff Manage</span>
+                </div>
             </div>
         </div>
     </div>
@@ -639,8 +735,28 @@
             // Set default view to NCKU campus
             map.setView([22.9972, 120.2194], 16);
             
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            // Define basemap layers
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
+            });
+            
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            });
+            
+            // Define base maps for layer control
+            const baseMaps = {
+                "Standard Map": osmLayer,
+                "Satellite Imagery": satelliteLayer
+            };
+            
+            // Add the default layer to the map
+            osmLayer.addTo(map);
+            
+            // Add layer control to the map
+            L.control.layers(baseMaps, null, {
+                position: 'bottomright',
+                collapsed: false
             }).addTo(map);
             
             // Load campus boundary
@@ -931,15 +1047,10 @@
                         </select>
                     </label>
                     <label>Photo
-                        <input type="file" id="editPhoto" accept="image/*">
+                        <input type="file" id="editPhoto" accept="image/*" onchange="previewEditPhoto(this)">
+                        ${report.photo ? `<img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${report.photo.startsWith('/') ? API_URL + report.photo : report.photo}">` : 
+                        `<img id="editPhotoPreview" style="display:none; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;">`}
                     </label>
-                    ${report.photo ? `
-                        <div style="margin-top: 8px;">
-                            <label>Current Photo:</label>
-                            <img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${report.photo.startsWith('/') ? API_URL + report.photo : report.photo}">
-                            <div style="font-size: 12px; color: #666; margin-top: 4px;">Upload a new photo to replace the current one</div>
-                        </div>
-                    ` : ''}
                     <div class="report-actions">
                         <button type="button" onclick="updateReport('${id}')" class="action-button">Update</button>
                         <button type="button" onclick="deleteReport('${id}')" class="action-button delete-button">Delete</button>
@@ -957,46 +1068,32 @@
             setTimeout(() => {
                 const typeSelect = document.getElementById('editType');
                 const otherTypeLabel = document.getElementById('editOtherTypeLabel');
-                const photoInput = document.getElementById('editPhoto');
                 
                 if (typeSelect && otherTypeLabel) {
                     typeSelect.addEventListener('change', function() {
                         otherTypeLabel.style.display = typeSelect.value === 'Other' ? 'block' : 'none';
                     });
                 }
-
-                // Add event listener for photo preview
-                if (photoInput) {
-                    photoInput.addEventListener('change', function(e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            const reader = new FileReader();
-                            reader.onload = function(e) {
-                                const preview = document.getElementById('editPhotoPreview');
-                                if (!preview) {
-                                    // Create preview if it doesn't exist
-                                    const container = photoInput.parentElement;
-                                    const previewContainer = document.createElement('div');
-                                    previewContainer.style.marginTop = '8px';
-                                    previewContainer.innerHTML = `
-                                        <label>New Photo Preview:</label>
-                                        <img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${e.target.result}">
-                                    `;
-                                    container.after(previewContainer);
-                                } else {
-                                    // Update existing preview
-                                    preview.src = e.target.result;
-                                    preview.previousElementSibling.textContent = "New Photo Preview:";
-                                    if (preview.nextElementSibling) {
-                                        preview.nextElementSibling.style.display = 'none';
-                                    }
-                                }
-                            };
-                            reader.readAsDataURL(file);
-                        }
-                    });
-                }
             }, 100);
+        }
+        
+        // Preview photo function to match the main platform behavior
+        function previewEditPhoto(input) {
+            const preview = document.getElementById('editPhotoPreview');
+            if (!preview) return;
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                
+                reader.readAsDataURL(input.files[0]);
+            } else {
+                preview.style.display = 'none';
+            }
         }
         
         function updateReport(id) {
