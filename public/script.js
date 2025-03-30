@@ -5,6 +5,7 @@ var reports = []; // Array to store report data
 var geoJsonPolygon; // Campus boundary polygon
 var mapLoaded = false; // Flag to track if map is loaded
 var dataLoaded = false; // Flag to track if data is loaded
+var baseMaps; // Layer control variable
 var API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:3002' 
     : window.location.origin; // This will use the same domain for API calls when deployed
@@ -91,10 +92,30 @@ function initializeMap() {
     
     map = L.map('map'); // Initialize new map
     
-    // Add tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Define basemap layers
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         zIndex: 1 // Ensure the tile layer is below other layers
+    });
+    
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        zIndex: 1
+    });
+    
+    // Define base maps for layer control
+    baseMaps = {
+        "Standard Map": osmLayer,
+        "Satellite Imagery": satelliteLayer
+    };
+    
+    // Add the default layer to the map
+    osmLayer.addTo(map);
+    
+    // Add layer control to the map
+    L.control.layers(baseMaps, null, {
+        position: 'bottomright',
+        collapsed: false
     }).addTo(map);
     
     // Set default view
