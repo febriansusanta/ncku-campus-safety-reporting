@@ -271,11 +271,42 @@
             font-weight: 500;
         }
 
-        .leaflet-popup-content .required:after {
-            content: "*";
+        /* Style for required fields - asterisk after label text */
+        .leaflet-popup-content label:has(select[required]):after,
+        .leaflet-popup-content label:has(input[required]):after {
+            content: " *";
             color: #420A15;
             display: inline;
             margin-left: 2px;
+        }
+
+        /* Remove the old required class styling since we're using the new method */
+        .leaflet-popup-content .required:after {
+            content: none;
+        }
+        
+        /* File input styling */
+        .leaflet-popup-content input[type="file"] {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 0;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            background-color: #f9f9f9;
+        }
+
+        .leaflet-popup-content input[type="file"]::-webkit-file-upload-button {
+            background-color: #420A15;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            margin-right: 10px;
+            cursor: pointer;
+            font-family: 'Poppins', sans-serif;
+            font-size: 12px;
         }
 
         .leaflet-popup-content select,
@@ -864,8 +895,8 @@
             
             // Create the popup content with the edit form
             const popupContent = `
-                <form id="editForm">
-                    <label class="required">Type
+                <form id="editForm" enctype="multipart/form-data">
+                    <label>Type *
                         <select id="editType" required>
                             <option value="">Please select</option>
                             <option value="Road" ${report.type === 'Road' ? 'selected' : ''}>Road</option>
@@ -877,10 +908,10 @@
                     <label id="editOtherTypeLabel" style="display:${!isStandardType ? 'block' : 'none'};">
                         Other Type <input type="text" id="editOtherType" value="${!isStandardType ? report.type : ''}">
                     </label>
-                    <label class="required">Time
+                    <label>Time *
                         <input type="datetime-local" id="editTime" value="${formattedTime}" required>
                     </label>
-                    <label class="required">Status
+                    <label>Status *
                         <select id="editStatus" required>
                             <option value="">Please select</option>
                             <option value="Pending" ${report.status === 'Pending' ? 'selected' : ''}>Pending</option>
@@ -891,7 +922,7 @@
                     <label>Description
                         <textarea id="editDescription">${report.description || ''}</textarea>
                     </label>
-                    <label class="required">Urgency
+                    <label>Urgency *
                         <select id="editUrgency" required>
                             <option value="">Please select</option>
                             <option value="Low" ${report.urgency === 'Low' ? 'selected' : ''}>Low</option>
@@ -899,6 +930,16 @@
                             <option value="High" ${report.urgency === 'High' ? 'selected' : ''}>High</option>
                         </select>
                     </label>
+                    <label>Photo
+                        <input type="file" id="editPhoto" accept="image/*">
+                    </label>
+                    ${report.photo ? `
+                        <div style="margin-top: 8px;">
+                            <label>Current Photo:</label>
+                            <img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${report.photo.startsWith('/') ? API_URL + report.photo : report.photo}">
+                            <div style="font-size: 12px; color: #666; margin-top: 4px;">Upload a new photo to replace the current one</div>
+                        </div>
+                    ` : ''}
                     <div class="report-actions">
                         <button type="button" onclick="updateReport('${id}')" class="action-button">Update</button>
                         <button type="button" onclick="deleteReport('${id}')" class="action-button delete-button">Delete</button>
@@ -916,10 +957,43 @@
             setTimeout(() => {
                 const typeSelect = document.getElementById('editType');
                 const otherTypeLabel = document.getElementById('editOtherTypeLabel');
+                const photoInput = document.getElementById('editPhoto');
                 
                 if (typeSelect && otherTypeLabel) {
                     typeSelect.addEventListener('change', function() {
                         otherTypeLabel.style.display = typeSelect.value === 'Other' ? 'block' : 'none';
+                    });
+                }
+
+                // Add event listener for photo preview
+                if (photoInput) {
+                    photoInput.addEventListener('change', function(e) {
+                        const file = e.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = function(e) {
+                                const preview = document.getElementById('editPhotoPreview');
+                                if (!preview) {
+                                    // Create preview if it doesn't exist
+                                    const container = photoInput.parentElement;
+                                    const previewContainer = document.createElement('div');
+                                    previewContainer.style.marginTop = '8px';
+                                    previewContainer.innerHTML = `
+                                        <label>New Photo Preview:</label>
+                                        <img id="editPhotoPreview" style="display:block; max-width:100%; max-height:120px; margin:6px 0; border-radius:4px;" src="${e.target.result}">
+                                    `;
+                                    container.after(previewContainer);
+                                } else {
+                                    // Update existing preview
+                                    preview.src = e.target.result;
+                                    preview.previousElementSibling.textContent = "New Photo Preview:";
+                                    if (preview.nextElementSibling) {
+                                        preview.nextElementSibling.style.display = 'none';
+                                    }
+                                }
+                            };
+                            reader.readAsDataURL(file);
+                        }
                     });
                 }
             }, 100);
@@ -978,6 +1052,12 @@
             // Include existing photo if there is one
             if (report.photo) {
                 formData.append('existingPhoto', report.photo);
+            }
+            
+            // Add the new photo if one was selected
+            const photoInput = document.getElementById('editPhoto');
+            if (photoInput && photoInput.files && photoInput.files[0]) {
+                formData.append('photo', photoInput.files[0]);
             }
             
             // Show loading indicator
