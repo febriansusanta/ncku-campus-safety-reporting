@@ -12,12 +12,17 @@ const {Storage} = require('@google-cloud/storage');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Increase the buffer timeout for Mongoose operations
+mongoose.set('bufferTimeoutMS', 30000); // Increase from default 10000ms to 30000ms
+
 // Connect to MongoDB with improved options
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/campus_report';
 mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds
+  serverSelectionTimeoutMS: 30000, // Increase timeout from 15s to 30s
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  retryWrites: true
+  connectTimeoutMS: 30000, // Add connection timeout
+  retryWrites: true,
+  family: 4 // Use IPv4, skip trying IPv6
 })
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => {
