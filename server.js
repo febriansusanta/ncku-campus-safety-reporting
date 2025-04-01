@@ -12,23 +12,67 @@ const {Storage} = require('@google-cloud/storage');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Increase the buffer timeout for Mongoose operations
-mongoose.set('bufferTimeoutMS', 30000); // Increase from default 10000ms to 30000ms
+// Database connection state
+let isDbConnected = false;
 
-// Connect to MongoDB with improved options
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/campus_report';
-mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 30000, // Increase timeout from 15s to 30s
-  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  connectTimeoutMS: 30000, // Add connection timeout
-  retryWrites: true,
-  family: 4 // Use IPv4, skip trying IPv6
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => {
-  console.error('MongoDB connection error:', err);
-  console.log('Please check if your MongoDB Atlas IP whitelist includes 0.0.0.0/0');
+// Increase the buffer timeout for Mongoose operations
+mongoose.set('bufferTimeoutMS', 30000);
+
+// Connect to MongoDB with improved options and retry logic
+const connectWithRetry = async (retries = 5, interval = 5000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/campus_report', {
+                serverSelectionTimeoutMS: 30000,
+                socketTimeoutMS: 45000,
+                connectTimeoutMS: 30000,
+                retryWrites: true,
+                family: 4
+            });
+            console.log('Connected to MongoDB');
+            isDbConnected = true;
+            return;
+        } catch (err) {
+            console.error(`MongoDB connection attempt ${i + 1} failed:`, err);
+            if (i < retries - 1) {
+                console.log(`Retrying in ${interval/1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, interval));
+            } else {
+                console.error('All MongoDB connection attempts failed');
+                isDbConnected = false;
+                throw err;
+            }
+        }
+    }
+};
+
+// Initial connection attempt
+connectWithRetry().catch(err => {
+    console.error('Failed to connect to MongoDB after all retries:', err);
 });
+
+// MongoDB connection event handlers
+mongoose.connection.on('disconnected', () => {
+    console.log('MongoDB disconnected');
+    isDbConnected = false;
+});
+
+mongoose.connection.on('reconnected', () => {
+    console.log('MongoDB reconnected');
+    isDbConnected = true;
+});
+
+// Middleware to check database connection
+const checkDbConnection = (req, res, next) => {
+    if (!isDbConnected) {
+        console.error('Database not connected');
+        return res.status(503).json({ 
+            error: 'Database service unavailable',
+            message: 'Please try again in a few moments'
+        });
+    }
+    next();
+};
 
 // Setup Google Cloud Storage
 let storage;
@@ -244,15 +288,25 @@ const deleteFile = (filePath) => {
     }
 };
 
-// Routes
+// Routes with connection check
 app.get('/reports', async (req, res) => {
     try {
+        if (!isDbConnected) {
+            return res.status(503).json({ 
+                error: 'Database service unavailable',
+                message: 'Please try again in a few moments'
+            });
+        }
         const reports = await Report.find();
         console.log(`Successfully fetched ${reports.length} reports`);
         res.json(reports);
     } catch (error) {
         console.error('Error fetching reports:', error);
-        res.status(500).json({ error: 'Error fetching reports', details: error.message });
+        res.status(500).json({ 
+            error: 'Error fetching reports', 
+            details: error.message,
+            message: 'Please try again in a few moments'
+        });
     }
 });
 
@@ -261,7 +315,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/reports', async (req, res) => {
+app.post('/reports', checkDbConnection, async (req, res) => {
     console.log('Received POST request for new report');
     
     upload(req, res, async function(err) {
@@ -316,7 +370,11 @@ app.post('/reports', async (req, res) => {
             res.status(201).json(report);
         } catch (error) {
             console.error('Error saving report:', error);
-            res.status(500).json({ error: 'Error saving report', details: error.message });
+            res.status(500).json({ 
+                error: 'Error saving report', 
+                details: error.message,
+                message: 'Please try again in a few moments'
+            });
         }
     });
 });
