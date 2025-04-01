@@ -251,40 +251,14 @@ function loadCampusBoundary() {
 // Fetch reports from server
 function fetchReports() {
     console.log('Fetching reports from server...');
-    
-    // Show a loading message in the map area
-    const mapElement = document.getElementById('map');
-    if (mapElement) {
-        const loadingMsg = document.createElement('div');
-        loadingMsg.id = 'map-loading-message';
-        loadingMsg.innerHTML = 'Connecting to database, please wait...';
-        loadingMsg.style.position = 'absolute';
-        loadingMsg.style.zIndex = '1000';
-        loadingMsg.style.top = '50%';
-        loadingMsg.style.left = '50%';
-        loadingMsg.style.transform = 'translate(-50%, -50%)';
-        loadingMsg.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-        loadingMsg.style.padding = '15px 20px';
-        loadingMsg.style.borderRadius = '8px';
-        loadingMsg.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
-        loadingMsg.style.fontWeight = 'bold';
-        mapElement.appendChild(loadingMsg);
-    }
-    
     fetch(`${API_URL}/reports`)
         .then(response => {
             if (!response.ok) {
-                return response.json().then(errorData => {
-                    throw new Error(errorData.details || `HTTP error! status: ${response.status}`);
-                });
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
-            // Remove loading message if it exists
-            const loadingMsg = document.getElementById('map-loading-message');
-            if (loadingMsg) loadingMsg.remove();
-            
             reports = data; // Update reports array with fetched data
             console.log(`Fetched ${reports.length} reports from server`);
             updateMarkers(); // Refresh markers after fetching reports
@@ -293,22 +267,7 @@ function fetchReports() {
         })
         .catch(error => {
             console.error('Error fetching reports:', error);
-            
-            // Remove loading message if it exists
-            const loadingMsg = document.getElementById('map-loading-message');
-            if (loadingMsg) loadingMsg.remove();
-            
-            // Show more helpful error message to user
-            let errorMessage = 'Failed to load reports. Please try refreshing the page.';
-            
-            if (error.message.includes('Database connection issue') || 
-                error.message.includes('Database is currently unavailable') ||
-                error.message.includes('timed out')) {
-                errorMessage = 'Database connection is experiencing issues. Please try again in a few minutes.';
-            }
-            
-            alert(errorMessage);
-            
+            alert('Failed to load reports. Please try refreshing the page.');
             dataLoaded = true; // Still mark as loaded to hide the overlay
             checkAllLoaded();
         });
