@@ -12,34 +12,16 @@ const {Storage} = require('@google-cloud/storage');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Configure Mongoose global settings - increase buffer timeout
-mongoose.set('bufferTimeoutMS', 30000); // Increase from default 10000ms to 30000ms
-
 // Connect to MongoDB with improved options
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/campus_report';
 mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+  serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-  connectTimeoutMS: 30000, // Timeout for initial connection
-  keepAlive: true,
-  keepAliveInitialDelay: 300000, // 5 minutes
-  retryWrites: true,
-  maxPoolSize: 10, // Maintain up to 10 socket connections
-  family: 4 // Use IPv4, skip trying IPv6
+  retryWrites: true
 })
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => {
   console.error('MongoDB connection error:', err);
-  
-  // More detailed error logging
-  if (err.name === 'MongoServerSelectionError') {
-    console.error('Failed to select a MongoDB server. Check network connectivity and MongoDB status.');
-  } else if (err.name === 'MongooseServerSelectionError') {
-    console.error('Failed to connect to MongoDB. Check connection string and network.');
-  } else if (err.code === 8000 || err.message.includes('auth')) {
-    console.error('MongoDB authentication failed. Check username and password.');
-  }
-  
   console.log('Please check if your MongoDB Atlas IP whitelist includes 0.0.0.0/0');
 });
 
@@ -260,35 +242,11 @@ const deleteFile = (filePath) => {
 // Routes
 app.get('/reports', async (req, res) => {
     try {
-        // Set a timeout for this operation
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database operation timed out')), 25000)
-        );
-        
-        // Create the actual database query
-        const dbPromise = Report.find();
-        
-        // Race the database operation against the timeout
-        const reports = await Promise.race([dbPromise, timeoutPromise]);
-        
+        const reports = await Report.find();
         console.log(`Successfully fetched ${reports.length} reports`);
         res.json(reports);
     } catch (error) {
         console.error('Error fetching reports:', error);
-        
-        // Return more specific error messages to the client
-        if (error.message === 'Database operation timed out') {
-            return res.status(503).json({ 
-                error: 'Database is currently unavailable', 
-                details: 'The operation timed out. Please try again later.' 
-            });
-        } else if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
-            return res.status(503).json({ 
-                error: 'Database connection issue', 
-                details: 'The server is having trouble connecting to the database. Please try again later.' 
-            });
-        }
-        
         res.status(500).json({ error: 'Error fetching reports', details: error.message });
     }
 });
